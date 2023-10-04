@@ -1,0 +1,23 @@
+{
+    "name": "botwhatsapp",
+    "description": "Webhook api whatsapp oficial",
+    "version": "1.0.0",
+    "private": true,
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js"
+    },
+    "engines": {
+        "node": ">=16.0.0"
+    },
+    "author": "R A RIBEIRO",
+    "license": "Apache-2.0",
+    "dependencies": {
+        "@google-cloud/firestore": "^7.0.0",
+        "axios": "^0.27.2",
+        "body-parser": "^1.20.0",
+        "express": "^4.17.1",
+        "firebase": "^10.3.1",
+        "request": "^2.88.2"
+    }
+}

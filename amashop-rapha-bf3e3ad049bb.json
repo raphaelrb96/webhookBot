@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "amashop-rapha",
+  "private_key_id": "bf3e3ad049bb8afcd7d43ad3a97c957ca2751c3a",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC/N8o1aNnCSB1N\nn3AZwaKcY2S/5kuiZxlsNulY0RcMBalhFpASjT26RaLrVJ5UQYeLmtLCzs9uLebk\nrsNllIRUU7RdIFNyTxrU6YlGpbPDdPQQU0vnYWzp8fKCEjHfsbvB1FUTzqShChvw\nCQhJNAeRfUy2LIrx3/FLvSjoeLKeXY2L/Yd2X1kptQkeJ4hztc0A37O1aAqm7Guq\npVhaj/NInn2goduknqHOcR58lc9od2a785u+jY0grtFVCXcHfzed3YAkn4BKWd31\nka7D35KxtZXjjg6sVX9NiKcSYOP3dXJKuCpIl62jMl/9H4r9RV8i+ppFYevfqdT6\nECTWkyGtAgMBAAECggEAKAVQtIn73Y5DV84xY6qj0pB48zMLjHOAniYGA7lLVhBP\nSYsz3zYhf714YkGlG6RVbrIaP3ySbJB93Un4imehpJaaTs1nuap1xq8UNK2UqKlv\nNYWBgu1gorwpUfDl8FgeIGzE267pxOy9OSliyxNxLBGp/wzmjcYdlgkCqVktpTg5\nshJmvDUKft/pvknYFXVk0qKQUxUpKeVrdlxakS08yEcDrsjiuDWWDPpK14MpAYuB\nmyaUor/jHVcKnbcceCmNgM7S8u5K+WVXQoiGmj4Q2GgfQekQ7e6diX338HQueziB\nq09ktvCfoJJkda+0wBQskgjmIYm2o6zsx4o7My7Y8QKBgQDkHEukLurkIE/SVnPR\na7c11v1CE3Q9A4LdKdurUSYk7bR1E53/OCDXjmBuSbEiY8DhQetcFixgrrl2UiGS\nxBm5jurUN/4R8mILbetrg3oTls7+jaeL60FqI2vCToSSGO30Rg1PAt8DJ+3pd9eS\nNkJ/NSKFh/Igog5JVy7TFCikmQKBgQDWmMf2D+NX7qu0U6P0tX4C5iWdeIdVuSnL\nf/9+cUCPZwCxGyWYcvF7LjT+ETSQtg4F6sHYEXvH+9oWt1xGVe3WLnIyDiVgILL4\nIVIWS43fqXkWo8S7h3G6ZrHqMpliQfz0OlfIvhFOxiVI5VcBrLTK5Ch/5gYSAYcx\njolcyCw+NQKBgQCLdIkB7PUJVn+2NchEpbeyIKdgOAh+LKFamHaFe+z38qK6WK3l\nE+lwHsjxY/f48EdA7032VE/5I5iar4d69IxNlwQVjc20JxytpBui9RQy2aXelbdy\noPay7si4V8xQjREcn58PSNASW9zlOLD/4FAy+McMH5p1PN3DFJu5y781MQKBgEWs\naQ/M7MU56mmr1km3O2h5jLDp1xbP/W/i6PMGli15BdJ6u+QZPan+wJnUwDpTwY3O\nQI2Eb6nobVB+y+jSMVwezFjQGvZw52qEdwBiG3gIsBXXqiIwwY4BlbYyI3axcg1h\ne+rjOv9WefiG7Y7PogtVtIiCCGqEMH64hoSnQSYZAoGAMG08ErXSe3f1jPxuARgL\nMlDtpma7/MPL090Vh0kuI+tUaPy+NsNkHt6f8lckzv+J0sbasegqAWBIaPiewQNf\nLw93/8OwPuWN1VClcKuULHVYRX73sQNB8KlFd0F+NMfpk8dZ/ZSZHDYTvQB+NneN\nHu/dmO54LgliIPytdJXj8eA=\n-----END PRIVATE KEY-----\n",
+  "client_email": "whatsappbot@amashop-rapha.iam.gserviceaccount.com",
+  "client_id": "110864353698847394254",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/whatsappbot%40amashop-rapha.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
