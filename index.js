@@ -354,55 +354,6 @@ app.post("/whatsapp", async (req, res) => {
             //FIM DO CODIGO DO DIALOG FLOW
 
 
-
-
-
-            //CODIGO DESCONTINUADO
-            let objFinal = getObjectData('escova alisadora', name);
-
-
-            if (String(msg_body).toLocaleLowerCase().includes('escova alisadora')) {
-
-                objFinal = getObjectData('escova alisadora', name);
-
-            } else if (String(msg_body).toLocaleLowerCase().includes('ver produtos')) {
-
-                objFinal = getObjectData('produtos', name);
-
-            } else if (String(msg_body).toLocaleLowerCase().includes('!ping')) {
-
-                objFinal = getObjectData('menu', name);
-
-            } else if (String(msg_body).toLocaleLowerCase().includes('falar com o gerente')) {
-
-                await responderMenssagem(phone_number_id, "92991933525", { text: `${name} ${from} quer falar com o gerente` }).then(() => {
-                    console.log("Chamar Gerente: Enviado com sucesso");
-                }).catch(error => {
-                    console.log(JSON.stringify(error));
-                });
-
-                objFinal = getObjectData('falar com o gerente', name);
-
-            } else {
-
-                objFinal = getObjectData('menu', name);
-
-            }
-
-            if (objFinal.type === 'interactive') {
-                await responderMenssagemComFluxos(phone_number_id, from, objFinal).then(({ data }) => sucessBotResposta(data, objFinal, from, name)).catch(error => {
-                    console.log(JSON.stringify(error));
-                });
-            } else {
-                await responderMenssagem(phone_number_id, from, objFinal).then(({ data }) => sucessBotResposta(data, objFinal, from, name)).catch(error => {
-                    console.log(JSON.stringify(error));
-                });
-            }
-
-            return res.sendStatus(200);
-            //CODIGO DESCONTINUADO
-
-
         } else if (entry && changes && change && messages && msg && typeMsg === "interactive" && msg.interactive.button_reply) {
 
             const idBtn = msg.interactive.button_reply.id;
@@ -487,46 +438,6 @@ app.post("/whatsapp", async (req, res) => {
 
             //FIM DO CODIGO DO DIALOG FLOW
 
-
-
-
-            //CODIGO DESCONTINUADO
-            let objFinal = getObjectData('escova alisadora', name);
-
-
-            if (idBtn === "produtos") {
-
-                objFinal = getObjectData('produtos', name);
-
-            } else if (idBtn === "gerente") {
-
-                await responderMenssagem(phone_number_id, "92991933525", `${name} ${from} quer falar com o gerente`).then(() => {
-                    console.log("Chamar Gerente: Enviado com sucesso");
-                }).catch(error => {
-                    console.log(JSON.stringify(error));
-                });
-
-                objFinal = getObjectData('falar com gerente', name);
-
-
-            } else if (idBtn === "escova") {
-
-                objFinal = getObjectData('escova alisadora', name);
-
-            }
-
-            if (objFinal.type === 'interactive') {
-                await responderMenssagemComFluxos(phone_number_id, from, objFinal).then(({ data }) => sucessBotResposta(data, objFinal, from, name)).catch(error => {
-                    console.log(JSON.stringify(error));
-                });
-            } else {
-                await responderMenssagem(phone_number_id, from, objFinal).then(({ data }) => sucessBotResposta(data, objFinal, from, name)).catch(error => {
-                    console.log(JSON.stringify(error));
-                });
-            }
-
-            return res.sendStatus(200);
-            //CODIGO DESCONTINUADO
 
         } else {
             return res.sendStatus(200);
