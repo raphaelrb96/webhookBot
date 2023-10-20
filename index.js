@@ -13,6 +13,7 @@ const request = require("request"),
     app = express().use(body_parser.json()); // creates express http server
 
 const Firestore = require('@google-cloud/firestore');
+const { SessionsClient } = require('@google-cloud/dialogflow-cx');
 
 const path = './amashop-rapha-bf3e3ad049bb.json';
 
@@ -20,6 +21,220 @@ const db = new Firestore({
     projectId: 'amashop-rapha',
     keyFilename: path,
 });
+
+const link = "https://seguro.amashops.com.br/r/QPFD16X4IR";
+
+
+const getObjectData = (modelo, name) => {
+
+    let textBody = '';
+    let buttonsActions = [];
+    let typeInteractive = 'button';
+    let type = 'text';
+
+    switch (modelo) {
+        case 'produtos':
+            typeInteractive = 'button';
+            type = 'interactive';
+            textBody = `🥳 ${name} Estamos com uma promoção imperdivel hoje: \n💇🏻‍♀️ A Escova alisadora campeã de vendas desse ano por um preço super acessível e frete grátis para todo Brasil \n\n👇 Clique no botão abaixo para conferir a oferta com desconto`;
+            buttonsActions = [
+                {
+                    type: "reply",
+                    reply: {
+                        id: "escova",
+                        title: "Ver Escova Alisadora"
+                    }
+                }
+            ];
+            break;
+        case 'escova alisadora':
+            typeInteractive = '';
+            type = 'text';
+            textBody = "⚠️ Promoção acaba em poucos dias, aproveite para comprar agora mesmo no pix, boleto ou cartão\n✈️ Com entrega grátis\n🔐 E 90 dias de garantia\n💲 *Por apenas 97,90* \n\n💥 Restam poucas unidades com desconto\n\n\n👇 Clique no link abaixo para comprar\n\n" + link;
+            buttonsActions = null;
+            break;
+        case 'falar com o gerente':
+            typeInteractive = '';
+            type = 'text';
+            textBody = "Vou encaminhar seu contato pro nosso gerente e em poucos minutos ele entrará em contato com você";
+            buttonsActions = null;
+            break;
+        default:
+            typeInteractive = 'button';
+            type = 'interactive';
+            textBody = `😊 Oi ${name}... Seja muito bem-vindo(a) ao assistente de compras da Amashop \n🔛 Estou online 24 horas para tirar todas suas dúvidas e te ajudar na sua jornada de compra\n\n💖 Sinta-se à vontade fazer todas as perguntas que tiver\n👇 Ou clique no botão que fizer mais sentido pra você\n\n*Em que você tem interesse agora ?* \n`;
+            buttonsActions = [
+                {
+                    type: "reply",
+                    reply: {
+                        id: "produtos",
+                        title: "Ver Produtos"
+                    }
+                },
+                {
+                    type: "reply",
+                    reply: {
+                        id: "gerente",
+                        title: "Falar com o Gerente"
+                    }
+                }
+            ];
+            break;
+    }
+
+    return {
+        typeInteractive: typeInteractive,
+        text: textBody,
+        actions: buttonsActions,
+        type: type
+    };
+};
+
+const getDataDialogFlow = (text, payload) => {
+
+    let textBody = text;
+    let buttonsActions = [];
+    let typeInteractive = 'button';
+    let type = 'text';
+
+    if (payload) {
+
+        type = 'interactive';
+
+        if (payload.list) {
+            typeInteractive = 'list';
+            buttonsActions = payload.list;
+        } else {
+            typeInteractive = 'button';
+            buttonsActions = payload.buttons;
+        }
+
+    }
+
+    return {
+        typeInteractive: typeInteractive,
+        text: textBody,
+        actions: buttonsActions,
+        type: type
+    };
+};
+
+const salvarMensagemTexto = (from, name, id, timestampMsg, typeMsg, msg) => {
+    const docRef = db.collection('Conversas').doc('Contatos').collection(from).doc(id);
+    return docRef.set({
+        id: id,
+        timestamp: timestampMsg,
+        metadata: {
+            from: name === 'Amashops' ? '559281414741' : from,
+            name
+        },
+        type: typeMsg,
+        message: {
+            text: msg
+        },
+        interactive: null,
+        status: null
+    });
+};
+
+const salvarMensagemInterativa = (from, name, id, timestampMsg, typeMsg, btnType, btnId, text, buttons) => {
+    const docRef = db.collection('Conversas').doc('Contatos').collection(from).doc(id);
+    return docRef.set({
+        id: id,
+        timestamp: timestampMsg,
+        metadata: {
+            from: name === 'Amashops' ? '559281414741' : from,
+            name
+        },
+        type: typeMsg,
+        message: null,
+        interactive: {
+            type: btnType,
+            body: {
+                text,
+                buttons
+            },
+            buttonId: btnId
+        },
+        status: null
+    });
+};
+
+const responderMenssagem = (phone_number_id, from, object) => {
+
+    const { text, type, typeInteractive, actions } = object;
+
+
+    return axios({
+        method: "POST", // Required, HTTP method, a string, e.g. POST, GET
+        url:
+            "https://graph.facebook.com/v12.0/" +
+            phone_number_id +
+            "/messages?access_token=" +
+            token,
+        data: {
+            messaging_product: "whatsapp",
+            to: from,
+            text: { body: text }
+        },
+        headers: { "Content-Type": "application/json" },
+    });
+};
+
+const responderMenssagemComFluxos = (phone_number_id, from, object) => {
+
+    const { text, type, typeInteractive, actions } = object;
+
+    return axios({
+        method: "POST", // Required, HTTP method, a string, e.g. POST, GET
+        url:
+            "https://graph.facebook.com/v12.0/" +
+            phone_number_id +
+            "/messages?access_token=" +
+            token,
+        data: {
+            messaging_product: "whatsapp",
+            to: from,
+            type: type,
+            interactive: {
+                type: typeInteractive,
+                body: {
+                    text: text
+                },
+                action: {
+                    buttons: actions
+                }
+            }
+        },
+        headers: { "Content-Type": "application/json" },
+    });
+};
+
+const sucessBotResposta = async (data, object, from, name) => {
+
+    console.log("DialogFlow enviou resposta");
+
+    const { messages, contacts } = data;
+    const msgId = messages[0].id;
+    const cnttId = contacts[0].wa_id;
+    const currentTimestamp = Number(Number.parseFloat(Date.now() / 1000).toFixed(0));
+
+    if (object.type === 'interactive') {
+        await salvarMensagemInterativa(from, 'Amashops', msgId, currentTimestamp, object.type, object.typeInteractive, null, object.text, object.actions).then(() => {
+            console.log("Doc salvo com sucesso");
+        }).catch(error => {
+            console.log(JSON.stringify(error));
+        });
+    } else {
+        await salvarMensagemTexto(from, 'Amashops', msgId, currentTimestamp, object.type, object.text).then(() => {
+            console.log("Doc salvo com sucesso");
+        }).catch(error => {
+            console.log(JSON.stringify(error));
+        });
+    }
+
+
+};
 
 app.get('/', (req, res) => {
     const name = process.env.NAME || 'World';
@@ -47,11 +262,12 @@ app.post("/whatsapp", async (req, res) => {
         const msg = messages[0];
         const typeMsg = msg.type;
         const { name } = contacts[0].profile;
-        let phone_number_id = metadata.phone_number_id;
-        const link = "https://seguro.amashops.com.br/r/QPFD16X4IR";
+        const phone_number_id = metadata.phone_number_id;
 
-
-
+        const client = new SessionsClient();
+        const projectId = 'amashop-rapha';
+        const location = 'global';
+        const agentId = '626aa698-ab9f-4e89-990f-ff7d113fbfc1';
 
 
 
@@ -60,10 +276,12 @@ app.post("/whatsapp", async (req, res) => {
 
             //Mensagem de texto recebida
 
-            let from = msg.from; // extract the phone number from the webhook payload
-            let msg_body = msg.text.body; // extract the message text from the webhook payload
+            const from = msg.from; // extract the phone number from the webhook payload
+            const idMsg = msg.id;
+            const msg_body = msg.text.body; // extract the message text from the webhook payload
 
-            const timestampMsg = new Date(Number(msg.timestamp));
+
+            const timestampMsg = new Date(Number(msg.timestamp)).getTime();
             const currentTimestamp = Number(Number.parseFloat(Date.now() / 1000).toFixed(0));
             const tempo = currentTimestamp - timestampMsg;
 
@@ -77,179 +295,123 @@ app.post("/whatsapp", async (req, res) => {
                 return res.sendStatus(200);
             }
 
-            const docRef = db.collection('Contatos').doc(from);
-
-            await docRef.set({
-                from,
-                msg_body,
-                timestampMsg,
-                name,
-                text: textmsgn,
-                timestamp: Date.now()
-            }).then(() => console.log("Doc salvo com sucesso")).catch(error => { console.log(JSON.stringify(error)) });
+            await salvarMensagemTexto(from, name, idMsg, timestampMsg, typeMsg, msg_body).then(() => {
+                console.log("Doc salvo com sucesso");
+            }).catch(error => {
+                console.log(JSON.stringify(error));
+            });
 
 
-            let url = "https://graph.facebook.com/v12.0/" + phone_number_id + "/messages";
+            //INICIO DO CODIGO DO DIALOG FLOW
 
+            const sessionPath = client.projectLocationAgentSessionPath(
+                projectId,
+                location,
+                agentId,
+                from
+            );
 
-
-            const menu = {
-                messaging_product: "whatsapp",
-                to: from,
-                type: "interactive",
-                interactive: {
-                    type: "button",
-                    body: {
-                        text: `😊 Oi ${name}... Seja muito bem-vindo(a) ao assistente de compras da Amashop \n🔛 Estou online 24 horas para tirar todas suas dúvidas e te ajudar na sua jornada de compra\n\n💖 Sinta-se à vontade fazer todas as perguntas que tiver\n👇 Ou clique no botão que fizer mais sentido pra você\n\n*Em que você tem interesse agora ?* \n`
+            const request = {
+                session: sessionPath,
+                queryInput: {
+                    text: {
+                        text: msg_body,
                     },
-                    action: {
-                        buttons: [
-                            {
-                                type: "reply",
-                                reply: {
-                                    id: "produtos",
-                                    title: "Ver Produtos"
-                                }
-                            },
-                            {
-                                type: "reply",
-                                reply: {
-                                    id: "gerente",
-                                    title: "Falar com o Gerente"
-                                }
-                            }
-                        ]
-                    }
-                }
+                    languageCode: "pt-BR",
+                },
             };
 
-            const produtos = {
-                messaging_product: "whatsapp",
-                to: from,
-                type: "interactive",
-                interactive: {
-                    type: "button",
-                    body: {
-                        text: `🥳 ${name} Estamos com uma promoção imperdivel hoje: \n💇🏻‍♀️ A Escova alisadora campeã de vendas desse ano por um preço super acessível e frete grátis para todo Brasil \n\n👇 Clique no botão abaixo para conferir a oferta com desconto`
-                    },
-                    action: {
-                        buttons: [
-                            {
-                                type: "reply",
-                                reply: {
-                                    id: "escova",
-                                    title: "Ver Escova Alisadora"
-                                }
-                            }
-                        ]
-                    }
+            const responseFlow = await client.detectIntent(request);
+
+            const objResponseFlow = responseFlow[0]?.queryResult?.responseMessages[0];
+
+            if (objResponseFlow) {
+                console.log(JSON.stringify(objResponseFlow));
+                const { text, payload } = objResponseFlow;
+                const string = text.text[0];
+                const respostaObject = getDataDialogFlow(string, null);
+                if (payload) {
+
+                    console.log(JSON.stringify(payload));
+
+                    await responderMenssagemComFluxos(phone_number_id, from, respostaObject).then(({ data }) => sucessBotResposta(data, respostaObject, from, name)).catch(error => {
+                        console.log(JSON.stringify(error));
+                    });
+
+                } else {
+
+                    await responderMenssagem(phone_number_id, from, respostaObject).then(({ data }) => sucessBotResposta(data, respostaObject, from, name)).catch(error => {
+                        console.log("DialogFlow sofreu um error");
+                        console.log(JSON.stringify(error));
+                    });
+
                 }
-            };
-
-            if (String(msg_body).toLocaleLowerCase().includes('escova alisadora')) {
-
-                await axios({
-                    method: "POST", // Required, HTTP method, a string, e.g. POST, GET
-                    url:
-                        "https://graph.facebook.com/v12.0/" +
-                        phone_number_id +
-                        "/messages?access_token=" +
-                        token,
-                    data: {
-                        messaging_product: "whatsapp",
-                        to: from,
-                        text: { body: "⚠️ Promoção acaba em poucos dias, aproveite para comprar agora mesmo no pix, boleto ou cartão\n✈️ Com entrega grátis\n🔐 E 90 dias de garantia\n💲 *Por apenas 97,90* \n\n💥 Restam poucas unidades com desconto\n\n\n👇 Clique no link abaixo para comprar\n\n" + link }
-                    },
-                    headers: { "Content-Type": "application/json" },
-                }).then(() => console.log("Msg Escova: Enviado com sucesso")).catch(error => { console.log(JSON.stringify(error)) });
-
-            } else if (String(msg_body).toLocaleLowerCase().includes('ver produtos')) {
-
-                axios({
-                    method: "POST", // Required, HTTP method, a string, e.g. POST, GET
-                    url:
-                        "https://graph.facebook.com/v12.0/" +
-                        phone_number_id +
-                        "/messages?access_token=" +
-                        token,
-                    data: produtos,
-                    headers: { "Content-Type": "application/json" },
-                }).then(() => console.log("Enviado com sucesso")).catch(error => { console.log(JSON.stringify(error)) });
-
-            } else if (String(msg_body).toLocaleLowerCase().includes('!ping')) {
-                await axios({
-                    method: "POST", // Required, HTTP method, a string, e.g. POST, GET
-                    url:
-                        "https://graph.facebook.com/v12.0/" +
-                        phone_number_id +
-                        "/messages",
-                    data: {
-                        messaging_product: "whatsapp",
-                        to: from,
-                        text: {
-                            body: "!pong"
-                        }
-                    },
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": "Bearer EAAJSDcZAomMIBO21Ud9Sh4ARuQa1Wup3IwXX5EP44sE0cLPBjEkSZA6ZCRTQAA37O4T5tkDuuBTekVUf151IjZCqrJ00RinYnexdGDdhbMg9MlAraMsUD42nd3UyyaeFulEJBf7hUr4Ka2P05YbXUQnbLd8u0cN6XhfuwUcdVeZBs3m9Yxk1FgYtQpvR8Mxw70Xn2mBXNivxnNW81"
-                    },
-                }).then(() => console.log("Pong: Enviado com sucesso")).catch(error => { console.log(JSON.stringify(error)) });
-            } else if (String(msg_body).toLocaleLowerCase().includes('falar com o gerente')) {
-
-                axios({
-                    method: "POST", // Required, HTTP method, a string, e.g. POST, GET
-                    url:
-                        "https://graph.facebook.com/v12.0/" +
-                        phone_number_id +
-                        "/messages?access_token=" +
-                        token,
-                    data: {
-                        messaging_product: "whatsapp",
-                        to: from,
-                        text: { body: "Vou encaminhar seu contato pro nosso gerente e em poucos minutos ele entrará em contato com você" }
-                    },
-                    headers: { "Content-Type": "application/json" },
-                }).then(() => console.log("Enviado com sucesso")).catch(error => { console.log(JSON.stringify(error)) });
-                axios({
-                    method: "POST", // Required, HTTP method, a string, e.g. POST, GET
-                    url:
-                        "https://graph.facebook.com/v12.0/" +
-                        phone_number_id +
-                        "/messages?access_token=" +
-                        token,
-                    data: {
-                        messaging_product: "whatsapp",
-                        to: "92991933525",
-                        text: { body: `${name} ${from} quer falar com o gerente` }
-                    },
-                    headers: { "Content-Type": "application/json" },
-                }).then(() => console.log("Enviado com sucesso")).catch(error => { console.log(JSON.stringify(error)) });
-
-            } else {
-
-                await axios({
-                    method: "POST", // Required, HTTP method, a string, e.g. POST, GET
-                    url:
-                        "https://graph.facebook.com/v12.0/" +
-                        phone_number_id +
-                        "/messages?access_token=" +
-                        token,
-                    data: menu,
-                    headers: { "Content-Type": "application/json" },
-                }).then(() => console.log("Menu: Enviado com sucesso")).catch(error => { console.log(JSON.stringify(error)) });
 
             }
 
             return res.sendStatus(200);
 
+            //FIM DO CODIGO DO DIALOG FLOW
+
+
+
+
+
+            //CODIGO DESCONTINUADO
+            let objFinal = getObjectData('escova alisadora', name);
+
+
+            if (String(msg_body).toLocaleLowerCase().includes('escova alisadora')) {
+
+                objFinal = getObjectData('escova alisadora', name);
+
+            } else if (String(msg_body).toLocaleLowerCase().includes('ver produtos')) {
+
+                objFinal = getObjectData('produtos', name);
+
+            } else if (String(msg_body).toLocaleLowerCase().includes('!ping')) {
+
+                objFinal = getObjectData('menu', name);
+
+            } else if (String(msg_body).toLocaleLowerCase().includes('falar com o gerente')) {
+
+                await responderMenssagem(phone_number_id, "92991933525", { text: `${name} ${from} quer falar com o gerente` }).then(() => {
+                    console.log("Chamar Gerente: Enviado com sucesso");
+                }).catch(error => {
+                    console.log(JSON.stringify(error));
+                });
+
+                objFinal = getObjectData('falar com o gerente', name);
+
+            } else {
+
+                objFinal = getObjectData('menu', name);
+
+            }
+
+            if (objFinal.type === 'interactive') {
+                await responderMenssagemComFluxos(phone_number_id, from, objFinal).then(({ data }) => sucessBotResposta(data, objFinal, from, name)).catch(error => {
+                    console.log(JSON.stringify(error));
+                });
+            } else {
+                await responderMenssagem(phone_number_id, from, objFinal).then(({ data }) => sucessBotResposta(data, objFinal, from, name)).catch(error => {
+                    console.log(JSON.stringify(error));
+                });
+            }
+
+            return res.sendStatus(200);
+            //CODIGO DESCONTINUADO
+
 
         } else if (entry && changes && change && messages && msg && typeMsg === "interactive" && msg.interactive.button_reply) {
 
             const idBtn = msg.interactive.button_reply.id;
+            const titleBtn = msg.interactive.button_reply.title;
 
-            let from = msg.from; // extract the phone number from the webhook payload
-            let msg_body = "interactive";
+            const from = msg.from; // extract the phone number from the webhook payload
+            const msg_body = "interactive";
+            const idMsg = msg.id;
+
 
             const timestampMsg = new Date(Number(msg.timestamp)).getTime();
             const currentTimestamp = Number(Number.parseFloat(Date.now() / 1000).toFixed(0));
@@ -265,109 +427,108 @@ app.post("/whatsapp", async (req, res) => {
                 return res.sendStatus(200);
             }
 
-            const docRef = db.collection('Contatos').doc(from);
 
-            await docRef.set({
-                from,
-                msg_body,
-                timestampMsg,
-                name,
-                text: textmsgn,
-                timestamp: Date.now()
-            }).then(() => console.log("Doc salvo com sucesso")).catch(error => { console.log(JSON.stringify(error)) });
+            await salvarMensagemInterativa(from, name, idMsg, timestampMsg, typeMsg, msg.interactive.type, idBtn, null, null).then(() => {
+                console.log("Doc salvo com sucesso");
+            }).catch(error => {
+                console.log(JSON.stringify(error));
+            });
 
-            const produtos = {
-                messaging_product: "whatsapp",
-                to: from,
-                type: "interactive",
-                interactive: {
-                    type: "button",
-                    body: {
-                        text: `🥳 ${name} Estamos com uma promoção imperdivel hoje: \n💇🏻‍♀️ A Escova alisadora campeã de vendas desse ano por um preço super acessível e frete grátis para todo Brasil \n\n👇 Clique no botão abaixo para conferir a oferta com desconto`
+
+
+            //INICIO DO CODIGO DO DIALOG FLOW
+
+            const sessionPath = client.projectLocationAgentSessionPath(
+                projectId,
+                location,
+                agentId,
+                from
+            );
+
+            const request = {
+                session: sessionPath,
+                queryInput: {
+                    text: {
+                        text: titleBtn,
                     },
-                    action: {
-                        buttons: [
-                            {
-                                type: "reply",
-                                reply: {
-                                    id: "escova",
-                                    title: "Ver Escova Alisadora"
-                                }
-                            }
-                        ]
-                    }
-                }
+                    languageCode: "pt-BR",
+                },
             };
 
+            const responseFlow = await client.detectIntent(request);
 
-            if (idBtn === "produtos") {
+            const objResponseFlow = responseFlow[0]?.queryResult?.responseMessages[0];
 
-                await axios({
-                    method: "POST", // Required, HTTP method, a string, e.g. POST, GET
-                    url:
-                        "https://graph.facebook.com/v12.0/" +
-                        phone_number_id +
-                        "/messages?access_token=" +
-                        token,
-                    data: produtos,
-                    headers: { "Content-Type": "application/json" },
-                }).then(() => console.log("Btn produtos: Enviado com sucesso")).catch(error => { console.log(JSON.stringify(error)) });
+            if (objResponseFlow) {
+                console.log(JSON.stringify(objResponseFlow));
+                const { text, payload } = objResponseFlow;
+                const string = text.text[0];
+                const respostaObject = getDataDialogFlow(string, null);
+                if (payload) {
 
-            } else if (idBtn === "gerente") {
+                    console.log(JSON.stringify(payload));
 
-                await axios({
-                    method: "POST", // Required, HTTP method, a string, e.g. POST, GET
-                    url:
-                        "https://graph.facebook.com/v12.0/" +
-                        phone_number_id +
-                        "/messages?access_token=" +
-                        token,
-                    data: {
-                        messaging_product: "whatsapp",
-                        to: from,
-                        text: { body: "Vou encaminhar seu contato pro nosso gerente e em poucos minutos ele entrará em contato com você" }
-                    },
-                    headers: { "Content-Type": "application/json" },
-                }).then(() => console.log("Btn gerente: Enviado com sucesso")).catch(error => { console.log(JSON.stringify(error)) });
-                await axios({
-                    method: "POST", // Required, HTTP method, a string, e.g. POST, GET
-                    url:
-                        "https://graph.facebook.com/v12.0/" +
-                        phone_number_id +
-                        "/messages?access_token=" +
-                        token,
-                    data: {
-                        messaging_product: "whatsapp",
-                        to: "92991933525",
-                        text: { body: `${name} ${from} quer falar com o você` }
-                    },
-                    headers: { "Content-Type": "application/json" },
-                }).then(() => console.log("Msg gerente: Enviado com sucesso")).catch(error => { console.log(JSON.stringify(error)) });
+                    await responderMenssagemComFluxos(phone_number_id, from, respostaObject).then(({ data }) => sucessBotResposta(data, respostaObject, from, name)).catch(error => {
+                        console.log(JSON.stringify(error));
+                    });
 
-            } else if (idBtn === "escova") {
-                await axios({
-                    method: "POST", // Required, HTTP method, a string, e.g. POST, GET
-                    url:
-                        "https://graph.facebook.com/v12.0/" +
-                        phone_number_id +
-                        "/messages?access_token=" +
-                        token,
-                    data: {
-                        messaging_product: "whatsapp",
-                        to: from,
-                        text: {
-                            body: "⚠️ Promoção acaba em poucos dias, aproveite para comprar agora mesmo no pix, boleto ou cartão\n✈️ Com entrega grátis\n🔐 E 90 dias de garantia\n💲 *Por apenas 97,90* \n\n💥 Restam poucas unidades com desconto\n\n\n👇 Clique no link abaixo para comprar\n\n"
-                                + link
-                        }
-                    },
-                    headers: { "Content-Type": "application/json" },
-                }).then(() => console.log("Btn escova: Enviado com sucesso")).catch(error => { console.log(JSON.stringify(error)) });
+                } else {
+
+                    await responderMenssagem(phone_number_id, from, respostaObject).then(({ data }) => sucessBotResposta(data, respostaObject, from, name)).catch(error => {
+                        console.log("DialogFlow sofreu um error");
+                        console.log(JSON.stringify(error));
+                    });
+
+                }
+
             }
 
             return res.sendStatus(200);
 
-        }
-        else {
+            //FIM DO CODIGO DO DIALOG FLOW
+
+
+
+
+            //CODIGO DESCONTINUADO
+            let objFinal = getObjectData('escova alisadora', name);
+
+
+            if (idBtn === "produtos") {
+
+                objFinal = getObjectData('produtos', name);
+
+            } else if (idBtn === "gerente") {
+
+                await responderMenssagem(phone_number_id, "92991933525", `${name} ${from} quer falar com o gerente`).then(() => {
+                    console.log("Chamar Gerente: Enviado com sucesso");
+                }).catch(error => {
+                    console.log(JSON.stringify(error));
+                });
+
+                objFinal = getObjectData('falar com gerente', name);
+
+
+            } else if (idBtn === "escova") {
+
+                objFinal = getObjectData('escova alisadora', name);
+
+            }
+
+            if (objFinal.type === 'interactive') {
+                await responderMenssagemComFluxos(phone_number_id, from, objFinal).then(({ data }) => sucessBotResposta(data, objFinal, from, name)).catch(error => {
+                    console.log(JSON.stringify(error));
+                });
+            } else {
+                await responderMenssagem(phone_number_id, from, objFinal).then(({ data }) => sucessBotResposta(data, objFinal, from, name)).catch(error => {
+                    console.log(JSON.stringify(error));
+                });
+            }
+
+            return res.sendStatus(200);
+            //CODIGO DESCONTINUADO
+
+        } else {
             return res.sendStatus(200);
         }
 
