@@ -15,10 +15,12 @@
     "dependencies": {
         "@google-cloud/dialogflow-cx": "^4.2.0",
         "@google-cloud/firestore": "^7.0.0",
+        "@google-cloud/storage": "^7.7.0",
         "axios": "^0.27.2",
         "body-parser": "^1.20.0",
         "express": "^4.17.1",
         "firebase": "^10.3.1",
+        "pb-util": "^1.0.3",
         "request": "^2.88.2"
     }
 }

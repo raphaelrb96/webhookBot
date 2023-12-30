@@ -6,18 +6,25 @@
 const token = process.env.WHATSAPP_TOKEN;
 
 // Imports dependencies and set up http server
+const fs = require('fs');
 const request = require("request"),
     express = require("express"),
     body_parser = require("body-parser"),
     axios = require("axios"),
     app = express().use(body_parser.json()); // creates express http server
-
+const { struct } = require('pb-util');
 const Firestore = require('@google-cloud/firestore');
+const { Storage } = require("@google-cloud/storage");
 const { SessionsClient } = require('@google-cloud/dialogflow-cx');
 
 const path = './amashop-rapha-bf3e3ad049bb.json';
 
 const db = new Firestore({
+    projectId: 'amashop-rapha',
+    keyFilename: path,
+});
+
+const storage = new Storage({
     projectId: 'amashop-rapha',
     keyFilename: path,
 });
@@ -119,9 +126,9 @@ const getDataDialogFlow = (text, payload) => {
     };
 };
 
-const salvarMensagemTexto = (from, name, id, timestampMsg, typeMsg, msg) => {
+const salvarMensagemTexto = (from, name, referral, id, timestampMsg, typeMsg, msg) => {
     const docRef = db.collection('Conversas').doc('Contatos').collection(from).doc(id);
-    return docRef.set({
+    let objMsgUpdate = {
         id: id,
         timestamp: timestampMsg,
         metadata: {
@@ -134,7 +141,50 @@ const salvarMensagemTexto = (from, name, id, timestampMsg, typeMsg, msg) => {
         },
         interactive: null,
         status: null
+    };
+
+    if (referral) {
+        objMsgUpdate = {
+            id: id,
+            timestamp: timestampMsg,
+            metadata: {
+                from: name === 'Amashops' ? '559281414741' : from,
+                name
+            },
+            type: typeMsg,
+            message: {
+                text: msg
+            },
+            interactive: null,
+            status: null,
+            referral: referral
+        };
+    }
+    return docRef.set(objMsgUpdate);
+};
+
+const salvarMensagemMidia = (from, name, id, timestampMsg, typeMsg, msg, url) => {
+    const docRef = db.collection('Conversas').doc('Contatos').collection(from).doc(id);
+
+    let objMidia = msg[typeMsg];
+    if (url) {
+        objMidia.url = url;
+    }
+    console.log('Salvar midia: ' + JSON.stringify(objMidia));
+
+    return docRef.set({
+        id: id,
+        timestamp: timestampMsg,
+        metadata: {
+            from: name === 'Amashops' ? '559281414741' : from,
+            name
+        },
+        type: typeMsg,
+        message: null,
+        [typeMsg]: objMidia,
+        status: null
     });
+
 };
 
 const salvarMensagemInterativa = (from, name, id, timestampMsg, typeMsg, btnType, btnId, text, buttons) => {
@@ -160,6 +210,59 @@ const salvarMensagemInterativa = (from, name, id, timestampMsg, typeMsg, btnType
     });
 };
 
+const baixarMidiaUrl = async (idMidia, midiaMimeType, from) => {
+
+    const objt = {
+        method: "GET", // Required, HTTP method, a string, e.g. POST, GET
+        url: "https://graph.facebook.com/v12.0/" + idMidia,
+        headers: {
+            "Content-Type": "application/json",
+            'Authorization': 'Bearer ' + token,
+        },
+    };
+
+    const urlFinal = await axios(objt).then(({ data }) => {
+        const { url } = data;
+        console.log('URL MIDIA: ' + url);
+        return url;
+    }).catch(error => {
+        console.log('URL MIDIA ERROR: ' + JSON.stringify(error));
+        return null;
+    });
+
+    const responseDownload = await axios({
+        method: "GET",
+        url: urlFinal,
+        headers: {
+            "Content-Type": "application/json",
+            'Authorization': 'Bearer ' + token,
+        },
+        responseType: 'arraybuffer'
+    }).then((response) => {
+        return response;
+    }).catch(e => { return e; });
+
+
+    const midiaType = responseDownload.headers['content-type'];
+    const ext = midiaType.split("/")[1];
+    const path = `${idMidia}.${ext}`;
+    fs.writeFileSync(path, responseDownload.data);
+    console.log('midiaMimeType: ' + midiaMimeType);
+    console.log('midiaType: ' + midiaType);
+    //const file = fs.readFileSync(path);
+    const myBucket = storage.bucket('whatsapp-amashop');
+    const pathFile = `${idMidia}`;
+    await myBucket.upload(path, { destination: pathFile, public: true, metadata: { contentType: midiaMimeType } }).then((event) => {
+        console.log('THEN event: ' + JSON.stringify(event));
+    }).catch(e => {
+        console.log('ERROR event: ' + JSON.stringify(e));
+    });
+    const file = myBucket.file(pathFile);
+    const publicUrl = file.publicUrl();
+    console.log('FILE BUCKET' + JSON.stringify(file));
+    return publicUrl;
+};
+
 const responderMenssagem = (phone_number_id, from, object) => {
 
     const { text, type, typeInteractive, actions } = object;
@@ -183,7 +286,16 @@ const responderMenssagem = (phone_number_id, from, object) => {
 
 const responderMenssagemComFluxos = (phone_number_id, from, object) => {
 
-    const { text, type, typeInteractive, actions } = object;
+    const { text, type, typeInteractive, actions, title } = object;
+
+    const dataButtons = {
+        buttons: actions
+    };
+
+    const dataList = {
+        button: title ? title : "Ver Lista",
+        sections: actions
+    };
 
     return axios({
         method: "POST", // Required, HTTP method, a string, e.g. POST, GET
@@ -201,9 +313,7 @@ const responderMenssagemComFluxos = (phone_number_id, from, object) => {
                 body: {
                     text: text
                 },
-                action: {
-                    buttons: actions
-                }
+                action: typeInteractive === 'button' ? dataButtons : dataList
             }
         },
         headers: { "Content-Type": "application/json" },
@@ -226,7 +336,7 @@ const sucessBotResposta = async (data, object, from, name) => {
             console.log(JSON.stringify(error));
         });
     } else {
-        await salvarMensagemTexto(from, 'Amashops', msgId, currentTimestamp, object.type, object.text).then(() => {
+        await salvarMensagemTexto(from, 'Amashops', null, msgId, currentTimestamp, object.type, object.text).then(() => {
             console.log("Doc salvo com sucesso");
         }).catch(error => {
             console.log(JSON.stringify(error));
@@ -260,7 +370,7 @@ app.post("/whatsapp", async (req, res) => {
 
 
         const msg = messages[0];
-        const typeMsg = msg.type;
+        const typeMsg = msg.type ? msg.type : '';
         const { name } = contacts[0].profile;
         const phone_number_id = metadata.phone_number_id;
 
@@ -269,16 +379,19 @@ app.post("/whatsapp", async (req, res) => {
         const location = 'global';
         const agentId = '626aa698-ab9f-4e89-990f-ff7d113fbfc1';
 
+        console.log("Message: " + JSON.stringify(msg ? msg : changes));
 
+        //trabalhar com outros tipos de mensagens, como: intereçao com lista, cliques em anuncios, cliques em respostas rapidas, e imagens, arquivos
 
         if (entry && changes && change && messages && msg && msg.text) {
 
 
             //Mensagem de texto recebida
 
-            const from = msg.from; // extract the phone number from the webhook payload
+            const from = msg.from;
             const idMsg = msg.id;
-            const msg_body = msg.text.body; // extract the message text from the webhook payload
+            const msg_body = msg.text.body;
+            const referral = msg.referral;
 
 
             const timestampMsg = new Date(Number(msg.timestamp)).getTime();
@@ -287,6 +400,7 @@ app.post("/whatsapp", async (req, res) => {
 
 
             const textmsgn = `Mensagem de ${name} (${from}) em ${new Date(Number(msg.timestamp) * 1000).toLocaleString("pt", { timeZone: "America/Manaus" })}: ${msg_body}`;
+            console.log(JSON.stringify(messages, null, 2));
             console.log(JSON.stringify(textmsgn, null, 2));
             console.log(JSON.stringify(tempo, null, 2));
 
@@ -295,7 +409,7 @@ app.post("/whatsapp", async (req, res) => {
                 return res.sendStatus(200);
             }
 
-            await salvarMensagemTexto(from, name, idMsg, timestampMsg, typeMsg, msg_body).then(() => {
+            await salvarMensagemTexto(from, name, referral, idMsg, timestampMsg, typeMsg, msg_body).then(() => {
                 console.log("Doc salvo com sucesso");
             }).catch(error => {
                 console.log(JSON.stringify(error));
@@ -323,13 +437,25 @@ app.post("/whatsapp", async (req, res) => {
 
             const responseFlow = await client.detectIntent(request);
 
-            const objResponseFlow = responseFlow[0]?.queryResult?.responseMessages[0];
+            const responseMsg = responseFlow[0]?.queryResult?.responseMessages;
+            let objText = null;
+            let objPayload = null;
+            for (const message of responseMsg) {
+                if (message.text) {
+                    objText = message.text.text[0];
+                }
 
-            if (objResponseFlow) {
-                console.log(JSON.stringify(objResponseFlow));
-                const { text, payload } = objResponseFlow;
-                const string = text.text[0];
-                const respostaObject = getDataDialogFlow(string, null);
+                if (message.payload) {
+                    objPayload = struct.decode(message.payload);
+                }
+            }
+
+            if (objText) {
+
+                const string = objText;
+                const payload = objPayload;
+                const respostaObject = getDataDialogFlow(string, payload);
+
                 if (payload) {
 
                     console.log(JSON.stringify(payload));
@@ -354,10 +480,13 @@ app.post("/whatsapp", async (req, res) => {
             //FIM DO CODIGO DO DIALOG FLOW
 
 
-        } else if (entry && changes && change && messages && msg && typeMsg === "interactive" && msg.interactive.button_reply) {
+        } else if (entry && changes && change && messages && msg && typeMsg === "interactive") {
+            //cliques em botões e listas
 
-            const idBtn = msg.interactive.button_reply.id;
-            const titleBtn = msg.interactive.button_reply.title;
+            const interactTypeObj = msg.interactive.button_reply ? msg.interactive.button_reply : msg.interactive.list_reply;
+
+            const idBtn = interactTypeObj.id;
+            const titleBtn = interactTypeObj.title;
 
             const from = msg.from; // extract the phone number from the webhook payload
             const msg_body = "interactive";
@@ -407,14 +536,26 @@ app.post("/whatsapp", async (req, res) => {
             };
 
             const responseFlow = await client.detectIntent(request);
+            const responseMsg = responseFlow[0]?.queryResult?.responseMessages;
+            let objText = null;
+            let objPayload = null;
+            for (const message of responseMsg) {
+                if (message.text) {
+                    objText = message.text.text[0];
+                }
 
-            const objResponseFlow = responseFlow[0]?.queryResult?.responseMessages[0];
+                if (message.payload) {
+                    objPayload = struct.decode(message.payload);
+                }
+            }
 
-            if (objResponseFlow) {
-                console.log(JSON.stringify(objResponseFlow));
-                const { text, payload } = objResponseFlow;
-                const string = text.text[0];
-                const respostaObject = getDataDialogFlow(string, null);
+
+
+            if (objText) {
+
+                const string = objText;
+                const payload = objPayload;
+                const respostaObject = getDataDialogFlow(string, payload);
                 if (payload) {
 
                     console.log(JSON.stringify(payload));
@@ -438,6 +579,63 @@ app.post("/whatsapp", async (req, res) => {
 
             //FIM DO CODIGO DO DIALOG FLOW
 
+
+        } else if (entry && changes && change && messages && msg && typeMsg === "button") {
+            //botao de resposta rapida
+            console.log("Type: " + typeMsg);
+        } else if (entry && changes && change && messages && msg && typeMsg === "reaction") {
+            //reacao
+            console.log("Type: " + typeMsg);
+        } else if (entry && changes && change && messages && msg && typeMsg.length > 0) {
+            //midias
+
+            console.log("Type: " + typeMsg);
+
+            if (typeMsg === 'image') {
+                const imagem = msg.image;
+                const { caption, mime_type, sha256, id } = imagem;
+            } else {
+                //const midia = msg.get(typeMsg);
+                //console.log('Tipo Desconhecido: ' + JSON.stringify(msg));
+            }
+
+            const from = msg.from;
+            const idMsg = msg.id;
+            const idMidia = msg[typeMsg].id ? msg[typeMsg].id : null;
+            const midiaMimeType = msg[typeMsg].mime_type ? msg[typeMsg].mime_type : null;
+            const timestampMsg = new Date(Number(msg.timestamp)).getTime();
+            const currentTimestamp = Number(Number.parseFloat(Date.now() / 1000).toFixed(0));
+            const tempo = currentTimestamp - timestampMsg;
+
+            if (tempo > 60) {
+                //return res.sendStatus(200);
+                console.log("Tempo: " + tempo);
+            }
+
+            console.log('ID midia: ' + idMidia);
+            if (!idMidia || !midiaMimeType) {
+                return res.sendStatus(200);
+            }
+
+            const urlMidia = await baixarMidiaUrl(idMidia, midiaMimeType, from);
+
+            await salvarMensagemMidia(from, name, idMsg, timestampMsg, typeMsg, msg, urlMidia).then(() => {
+                console.log("Doc salvo com sucesso");
+                return res.sendStatus(200);
+            }).catch(error => {
+                console.log(JSON.stringify(error));
+                return res.sendStatus(404);
+            });
+
+        } else if (entry && changes && change && messages && msg && msg.location) {
+            //localizaçao
+            //const { latitude, longitude, name, address } = msg.location;
+            console.log("Type: " + typeMsg);
+
+        } else if (entry && changes && change && messages && msg && msg.contacts) {
+            //contatos
+            //const {addresses, birthday, emails, name, phones, urls} = msg.contacts;
+            console.log("Type: " + typeMsg);
 
         } else {
             return res.sendStatus(200);
