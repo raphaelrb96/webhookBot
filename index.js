@@ -126,6 +126,16 @@ const getDataDialogFlow = (text, payload) => {
     };
 };
 
+const atualizarModeloWhatsapp = (doc, id) => {
+    const docRef = db.collection('ModeloWhatsapp').doc(id);
+    return docRef.update(doc);
+};
+
+const atualizarStatusMensagem = (from, id, status) => {
+    const docRef = db.collection('Conversas').doc('Contatos').collection(from).doc(id);
+    return docRef.update({ status });
+};
+
 const salvarMensagemTexto = (from, name, referral, id, timestampMsg, typeMsg, msg) => {
     const docRef = db.collection('Conversas').doc('Contatos').collection(from).doc(id);
     let objMsgUpdate = {
@@ -362,8 +372,10 @@ app.post("/whatsapp", async (req, res) => {
     const { entry } = body;
     const changes = entry[0].changes;
     const change = changes[0];
-    const { value } = change;
+    const { value, field } = change;
     const { messages, metadata, contacts, statuses } = value;
+    console.log("Dados Recebidos: " + JSON.stringify(value));
+
 
     // info on WhatsApp text message payload: https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/payload-examples#text-messages
     if (body.object && messages) {
@@ -640,6 +652,54 @@ app.post("/whatsapp", async (req, res) => {
         } else {
             return res.sendStatus(200);
         }
+
+    } if (statuses && statuses.length > 0) {
+
+        console.log("Statuses : " + JSON.stringify(statuses));
+        const erro = statuses[0];
+        const { id, status, errors, recipient_id } = erro;
+        const { code, title, message, error_data } = errors[0];
+        const erro_details = error_data.details;
+
+        const newStatus = {
+            status,
+            details: erro_details,
+            code,
+            title
+        };
+
+        await atualizarStatusMensagem(recipient_id, id, newStatus).then(() => {
+            console.log('Status atualizado com sucesso');
+            return res.sendStatus(200);
+        }).catch(e => {
+            console.log('Status não foi atualizado');
+            return res.sendStatus(404);
+        });
+
+    } if (field && field === 'message_template_status_update') {
+
+        const { event, reason, message_template_id } = value;
+
+        const queryResponse = await db.collection('ModeloWhatsapp').where("waid", "==", message_template_id).get();
+        if (!queryResponse) return res.sendStatus(404);
+
+        const queryData = queryResponse.docs.data();
+        const idDocQueryResult = queryData.id;
+
+        const docUpdate = {
+            status: {
+                event,
+                reason
+            }
+        };
+
+        return atualizarModeloWhatsapp(docUpdate, idDocQueryResult).then(() => {
+            console.log('Modelo atualizado com sucesso');
+            return res.sendStatus(200);
+        }).catch(e => {
+            console.log('Modelo não foi atualizado: ' + e);
+            return res.sendStatus(404);
+        });
 
     } else {
         // Return a '404 Not Found' if event is not from a WhatsApp API
